@@ -1,16 +1,16 @@
 pub mod config_reader;
 pub mod log_helper;
 pub mod cli_reader;
-mod create_tables;
+pub mod db_pars;
 
+use crate::sql::create_ods_tables;
 use crate::err::AppError;
-use sqlx::postgres::{PgPoolOptions, PgConnectOptions};
+use std::ffi::OsString;
+use directories::ProjectDirs;
 use sqlx::{Pool, Postgres};
 use std::path::PathBuf;
 use cli_reader::{CliPars, Flags};
 use std::fs;
-use std::time::Duration;
-use sqlx::ConnectOptions;
 use config_reader::Config;
 use std::sync::OnceLock;
 
@@ -22,41 +22,45 @@ pub struct InitParams {
 
 pub static LOG_RUNNING: OnceLock<bool> = OnceLock::new();
 
-pub fn get_params(cli_pars: CliPars, config_string: &String) -> Result<InitParams, AppError> {
-
-    // Called from lib::run as the initial task of the program.
-    // Returns a struct that contains the program's parameters.
-      
-    // Normal import and / or processing and / or outputting
-    // If folder name also given in CL args the CL version takes precedence
+pub fn get_command_line_args(args: Vec<OsString>) -> Result<CliPars, AppError> {
     
-    let config_file: Config = config_reader::populate_config_vars(&config_string)?; 
-    let folder_pars = config_file.folders;  // guaranteed to exist
+    // CLI parameters collected first, in this instance mainly to conform with other systems.
+    
+    cli_reader::fetch_valid_arguments(args)
+}
 
-    let empty_pb = PathBuf::from("");
-    let mut data_folder_good = true;
+pub fn get_config_file_args()-> Result<Config, AppError> {
+    
+    // The config data is then processed to create a Config object, which includes 
+    // database connection parameters, and parent folders for logs and source data.
+
+    let config_path = obtain_config_file_path()?;  // The OS dependent location of the config file.
+
+    let config_string = fs::read_to_string(&config_path)
+            .map_err(|e| AppError::IoReadErrorWithPath(e, config_path.to_owned()))?;
+
+    config_reader::populate_config_vars(&config_string)
+}
+
+pub fn combine_args(cli_pars: CliPars, config: Config) -> Result<InitParams, AppError> {
+
+    // CLI and config data are then combined into a single InitParams struct - the CLI's 
+    // source file parameters will overrule any in the config file.
+
+    let folder_pars = config.folders;  // guaranteed to exist
 
     let data_folder =  folder_pars.data_folder_path;
-    if !folder_exists (&data_folder) 
+    if !folder_exists (&data_folder) && (cli_pars.flags.import_ods || cli_pars.flags.import_trusts)
     {   
-        data_folder_good = false;
-    }
-
-    if !data_folder_good && cli_pars.flags.import_data { 
         return Result::Err(AppError::MissingProgramParameter("data_folder".to_string()));
     }
 
-    let mut log_folder = folder_pars.log_folder_path;
-    if log_folder == empty_pb && data_folder_good {
-        log_folder = data_folder.clone();
+    let log_folder = folder_pars.log_folder_path;
+    if !folder_exists (&log_folder) {
+        fs::create_dir_all(&log_folder)?;
     }
-    else {
-        if !folder_exists (&log_folder) { 
-            fs::create_dir_all(&log_folder)?;
-        }
-    }
-   
-    // For execution flags read from the environment variables
+
+    // For flags read from the CLI variables
     
     Ok(InitParams {
         data_folder,
@@ -68,46 +72,15 @@ pub fn get_params(cli_pars: CliPars, config_string: &String) -> Result<InitParam
 
 
 fn folder_exists(folder_name: &PathBuf) -> bool {
-    let xres = folder_name.try_exists();
-    let res = match xres {
+    match folder_name.try_exists() {
         Ok(true) => true,
-        Ok(false) => false, 
-        Err(_e) => false,           
-    };
-    res
+        _ => false,   // includes Ok(false) as well as Err
+    }
 }
-        
-
-
-pub async fn get_db_pool() -> Result<Pool<Postgres>, AppError> {  
-
-    // Establish DB name and thence the connection string
-    // (done as two separate steps to allow for future development).
-    // Use the string to set up a connection options object and change 
-    // the time threshold for warnings. Set up a DB pool option and 
-    // connect using the connection options object.
-
-    let db_name = match config_reader::fetch_db_name() {
-        Ok(n) => n,
-        Err(e) => return Err(e),
-    };
-
-    let db_conn_string = config_reader::fetch_db_conn_string(&db_name)?;  
-   
-    let mut opts: PgConnectOptions = db_conn_string.parse()
-                    .map_err(|e| AppError::DBPoolError("Problem with parsing conection string".to_string(), e))?;
-    opts = opts.log_slow_statements(log::LevelFilter::Warn, Duration::from_secs(3));
-
-    PgPoolOptions::new()
-        .max_connections(5) 
-        .connect_with(opts).await
-        .map_err(|e| AppError::DBPoolError(format!("Problem with connecting to database {} and obtaining Pool", db_name), e))
-}
-
 
 pub fn establish_log(params: &InitParams) -> Result<(), AppError> {
 
-    if !log_set_up() {  // can be called more than once in context of integration tests
+    if !log_set_up() {  // may be called more than once in context of integration tests
         log_helper::setup_log(&params.log_folder)?;
         LOG_RUNNING.set(true).unwrap(); // should always work
         log_helper::log_startup_params(&params);
@@ -123,12 +96,44 @@ pub fn log_set_up() -> bool {
 }
 
 
-pub async fn create_tables(pool: &Pool<Postgres>) -> Result<(), AppError> {
+pub async fn create_ods_tables(pool: &Pool<Postgres>) -> Result<(), AppError> {
 
-    create_tables::create_tables(pool).await?;
+    let sql = create_ods_tables::get_ods_sql_1();
+    sqlx::raw_sql(sql).execute(pool).await
+        .map_err(|e| AppError::SqlxError(e, sql.to_string()))?;
+
+    let sql = create_ods_tables::get_ods_sql_2();
+    sqlx::raw_sql(sql).execute(pool).await
+        .map_err(|e| AppError::SqlxError(e, sql.to_string()))?;
+
+    let sql = create_ods_tables::get_ods_sql_3();
+    sqlx::raw_sql(sql).execute(pool).await
+        .map_err(|e| AppError::SqlxError(e, sql.to_string()))?;
 
     Ok(())
 }
+
+
+fn obtain_config_file_path() -> Result<PathBuf, AppError> {
+
+     if let Some(config) = ProjectDirs::from("eu", "canhamis", "imp_ror") {
+         let config_folder = config.config_dir().to_path_buf();
+         let file_name = "config.toml";
+         Ok(config_folder.join(file_name))
+ 
+         // Linux:   /home/<user name>/.config/imp_ror/config.toml
+         // Windows: C:\Users\<user name>\AppData\Roaming\canhamis\imp_ror\config.toml
+         // macOS:   /Users/<user name>/Library/Application Support/eu.canhamis.imp_ror/config.toml
+
+     }   
+     else {
+         println!("Odd! - Unable to identify an OS-specific location for the configuration file");
+         Err(AppError::ConfigurationError(
+             "No folder for config file found".to_string(), 
+             "Fatal error - unable to proceed".to_string()))
+     }
+}
+
 
 
 // Tests
@@ -142,9 +147,9 @@ mod tests {
     fn check_config_vars_read_correctly() {
 
         let config = r#"
- [folders]
- data_folder_path="/home/steve/Data/MDR source data/NHS Org Data/2025 October/"
- log_folder_path="/home/steve/Data/MDR/MDR_Logs/nhs/"
+[folders]
+data_folder_path="/home/steve/Data/Resources - Data/NHS Org Data/ODS Source data/2025 October/"
+log_folder_path="/home/steve/Data/MDR logs/nhs/"
 
 [database]
 db_host="localhost"
@@ -152,20 +157,18 @@ db_user="user_name"
 db_password="password"
 db_port="5433"
 "#;
-        let config_string = config.to_string();
-        config_reader::populate_config_vars(&config_string).unwrap();
-
         let args : Vec<&str> = vec!["dummy target"];
         let test_args = args.iter().map(|x| x.to_string().into()).collect::<Vec<OsString>>();
-        let cli_pars = cli_reader::fetch_valid_arguments(test_args).unwrap();
 
-        let res = get_params(cli_pars, &config_string).unwrap();
-
-        assert_eq!(res.flags.import_data, true);
-        assert_eq!(res.flags.test_run, false);
-        assert_eq!(res.data_folder, PathBuf::from("/home/steve/Data/MDR source data/NHS Org Data/2025 October/"));
-        assert_eq!(res.log_folder, PathBuf::from("/home/steve/Data/MDR/MDR_Logs/nhs"));
-
+        let cli = get_command_line_args(test_args).unwrap();
+        let config_string = config.to_string();
+        let config = config_reader::populate_config_vars(&config_string).unwrap();
+        let res = combine_args(cli, config).unwrap();
+        
+        assert_eq!(res.flags.import_ods, true);
+        assert_eq!(res.flags.process_ods, false);
+        assert_eq!(res.data_folder, PathBuf::from("/home/steve/Data/Resources - Data/NHS Org Data/ODS Source data/2025 October/"));
+        assert_eq!(res.log_folder, PathBuf::from("/home/steve/Data/MDR logs/nhs/"));
     }
    
     
@@ -174,9 +177,9 @@ db_port="5433"
     fn check_wrong_data_folder_panics() {
 
         let config = r#"
- [folders]
- data_folder_path="/home/steve/Data/MDR source data/NHS Org Data/2025/"
- log_folder_path="/home/steve/Data/MDR/MDR_Logs/nhs/"
+[folders]
+data_folder_path="/home/steve/Data/MDR source data/NHS Org Data/2025/"
+log_folder_path="/home/steve/Data/MDR logs/nhs/"
 
 [database]
 db_host="localhost"
@@ -190,8 +193,9 @@ db_port="5433"
         let args : Vec<&str> = vec!["dummy target", "-r"];
         let test_args = args.iter().map(|x| x.to_string().into()).collect::<Vec<OsString>>();
         let cli_pars = cli_reader::fetch_valid_arguments(test_args).unwrap();
-
-        let _res = get_params(cli_pars, &config_string).unwrap();
+        let config_string = config.to_string();
+        let config = config_reader::populate_config_vars(&config_string).unwrap();
+        let _res = combine_args(cli_pars, config).unwrap();
     }
 }
 

@@ -71,9 +71,12 @@
      info!("");
      info!("************************************");
      info!("");
-     info!("data_folder: {}", ip.data_folder.display());
-     info!("log_folder: {}", ip.log_folder.display());
-     info!("import_data: {}", ip.flags.import_data);
+     info!("data folder: {}", ip.data_folder.display());
+     info!("log folder: {}", ip.log_folder.display());
+     info!("import ODS data: {}", ip.flags.import_ods);
+     info!("process ODS data: {}", ip.flags.process_ods);
+     info!("import hospital data: {}", ip.flags.import_hosps);
+     info!("import trust data: {}", ip.flags.import_trusts);
      info!("");
      info!("************************************");
      info!("");

@@ -197,7 +197,7 @@
  
  [folders]
  data_folder_path="/home/steve/Data/MDR source data/NHS Org Data/2025 October/"
- log_folder_path="/home/steve/Data/MDR/MDR_Logs/nhs/"
+ log_folder_path="/home/steve/Data/MDR logs/nhs/"
 
  [database]
  db_host="localhost"
@@ -209,7 +209,7 @@
          let config_string = config.to_string();
          let res = populate_config_vars(&config_string).unwrap();
          assert_eq!(res.folders.data_folder_path, PathBuf::from("/home/steve/Data/MDR source data/NHS Org Data/2025 October/"));
-         assert_eq!(res.folders.log_folder_path, PathBuf::from("/home/steve/Data/MDR/MDR_Logs/nhs/"));
+         assert_eq!(res.folders.log_folder_path, PathBuf::from("/home/steve/Data/MDR logs/nhs/"));
          assert_eq!(res.db_pars.db_host, "localhost");
          assert_eq!(res.db_pars.db_user, "user_name");
          assert_eq!(res.db_pars.db_password, "password");
@@ -266,7 +266,7 @@
          let config = r#"
  [folders]
  data_folder_path="/home/steve/Data/MDR source data/NHS Org Data/2025 October/"
- log_folder_path="/home/steve/Data/MDR/MDR_Logs/nhs/"
+ log_folder_path="/home/steve/Data/MDR logs/nhs/"
   
  [database]
  db_host="localhost"
@@ -286,7 +286,7 @@
          let config = r#"
  [folders]
  data_folder_path="/home/steve/Data/MDR source data/NHS Org Data/2025 October/"
- log_folder_path="/home/steve/Data/MDR/MDR_Logs/nhs/"
+ log_folder_path="/home/steve/Data/MDR logs/nhs/"
   
  [database]
  db_user="user_name"
@@ -308,7 +308,7 @@
          let config = r#"
  [folders]
  data_folder_path="/home/steve/Data/MDR source data/NHS Org Data/2025 October/"
- log_folder_path="/home/steve/Data/MDR/MDR_Logs/nhs/"
+ log_folder_path="/home/steve/Data/MDR logs/nhs/"
  
  [database]
  db_host="localhost"

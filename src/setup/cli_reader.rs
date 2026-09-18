@@ -1,20 +1,20 @@
-/***************************************************************************
- *
- ***************************************************************************/
+// Module uses clap crate to read command line arguments. 
 
- use clap::{command, Arg, ArgMatches};
- use crate::err::AppError;
- use std::ffi::OsString;
+use clap::{command, Arg, ArgMatches};
+use crate::err::AppError;
+use std::ffi::OsString;
  
- pub struct CliPars {
+pub struct CliPars {
      pub flags: Flags, 
- }
+}
  
- #[derive(Debug, Clone, Copy)]
- pub struct Flags {
-     pub import_data: bool,
-     pub test_run: bool,
- }
+#[derive(Debug, Clone, Copy)]
+pub struct Flags {
+    pub import_ods: bool,
+    pub process_ods: bool,
+    pub import_hosps: bool,
+    pub import_trusts: bool,
+}
  
  pub fn fetch_valid_arguments(args: Vec<OsString>) -> Result<CliPars, AppError>
  { 
@@ -22,23 +22,25 @@
   
      // Flag values are false if not present, true if present.
  
-     let mut r_flag = parse_result.get_flag("r_flag");
-     let z_flag = parse_result.get_flag("z_flag");
-     
+     let mut i_flag = parse_result.get_flag("i_flag");
+     let p_flag = parse_result.get_flag("p_flag");
+     let s_flag = parse_result.get_flag("s_flag");
+     let t_flag = parse_result.get_flag("t_flag");
 
-     if !r_flag {
-         r_flag = true;  // import is the default
+     if !i_flag && !p_flag && !s_flag && !t_flag{
+         i_flag = true;  // import ODS data is the default
      }
  
      let flags = Flags {
-         import_data: r_flag,
-         test_run: z_flag,
+         import_ods: i_flag,
+         process_ods: p_flag,
+         import_hosps: s_flag,
+         import_trusts: t_flag,
      };
  
      Ok(CliPars {
          flags: flags,
      })
- 
  }
  
  
@@ -47,19 +49,35 @@
      command!()
          .about("Imports data from csv filesand imports it into a database")
          .arg(
-             Arg::new("r_flag")
-            .short('r')
-            .long("import")
+             Arg::new("i_flag")
+            .short('i')
+            .long("import-ods")
             .required(false)
             .help("A flag signifying import from ods files to ods schema tables")
             .action(clap::ArgAction::SetTrue)
          )
         .arg(
-             Arg::new("z_flag")
-             .short('z')
-             .long("test")
+             Arg::new("p_flag")
+             .short('p')
+             .long("process-ods")
              .required(false)
-             .help("A flag signifying that this is part of an integration test run - suppresses logs")
+             .help("A flag signifying process ods data")
+             .action(clap::ArgAction::SetTrue)
+        )
+        .arg(
+             Arg::new("s_flag")
+             .short('s')
+             .long("import-hosp")
+             .required(false)
+             .help("A flag signifying import hosp data")
+             .action(clap::ArgAction::SetTrue)
+        )
+        .arg(
+             Arg::new("t_flag")
+             .short('t')
+             .long("import-trust")
+             .required(false)
+             .help("A flag signifying import trust data")
              .action(clap::ArgAction::SetTrue)
         )
      .try_get_matches_from(args)
@@ -79,43 +97,51 @@
          let args : Vec<&str> = vec![target];
          let test_args = args.iter().map(|x| x.to_string().into()).collect::<Vec<OsString>>();
          let res = fetch_valid_arguments(test_args).unwrap();
-         assert_eq!(res.flags.import_data, true);
-         assert_eq!(res.flags.test_run, false);
+         assert_eq!(res.flags.import_ods, true);
+         assert_eq!(res.flags.process_ods, false);
+         assert_eq!(res.flags.import_hosps, false);
+         assert_eq!(res.flags.import_trusts, false);
      }
  
      #[test]
-     fn check_cli_with_r_flag() {
+     fn check_cli_with_i_flag() {
          let target = "dummy target";
-         let args : Vec<&str> = vec![target, "-r"];
+         let args : Vec<&str> = vec![target, "-i"];
          let test_args = args.iter().map(|x| x.to_string().into()).collect::<Vec<OsString>>();
  
          let res = fetch_valid_arguments(test_args).unwrap();
-         assert_eq!(res.flags.import_data, true);
-         assert_eq!(res.flags.test_run, false);
+         assert_eq!(res.flags.import_ods, true);
+         assert_eq!(res.flags.process_ods, false);
+         assert_eq!(res.flags.import_hosps, false);
+         assert_eq!(res.flags.import_trusts, false);
      }
  
  
      #[test]
-     fn check_cli_with_z_flags() {
+     fn check_cli_with_s_flags() {
          let target = "dummy target";
-         let args : Vec<&str> = vec![target, "-z"];
+         let args : Vec<&str> = vec![target, "-s"];
          let test_args = args.iter().map(|x| x.to_string().into()).collect::<Vec<OsString>>();
  
          let res = fetch_valid_arguments(test_args).unwrap();
-         assert_eq!(res.flags.import_data, true);
-         assert_eq!(res.flags.test_run, true);
+         assert_eq!(res.flags.import_ods, false);
+         assert_eq!(res.flags.process_ods, false);
+         assert_eq!(res.flags.import_hosps, true);
+         assert_eq!(res.flags.import_trusts, false);
      }
       
     
      #[test]
      fn check_cli_with_most_params_explicit() {
          let target = "dummy target";
-         let args : Vec<&str> = vec![target, "-r", "-z"];
+         let args : Vec<&str> = vec![target, "-i", "-p", "-s", "-t"];
          let test_args = args.iter().map(|x| x.to_string().into()).collect::<Vec<OsString>>();
  
          let res = fetch_valid_arguments(test_args).unwrap();
-         assert_eq!(res.flags.import_data, true);
-         assert_eq!(res.flags.test_run, true);
+         assert_eq!(res.flags.import_ods, true);
+         assert_eq!(res.flags.process_ods, true);
+         assert_eq!(res.flags.import_hosps, true);
+         assert_eq!(res.flags.import_trusts, true);
      }
  
  }

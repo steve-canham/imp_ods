@@ -3,40 +3,49 @@ pub mod setup;
 pub mod err;
 mod import;
 mod vectors;
+mod sql;
 mod utils;
 
-
-use setup::cli_reader;
 use err::AppError;
 use std::ffi::OsString;
-use std::path::PathBuf;
-use std::fs;
 
 pub async fn run(args: Vec<OsString>) -> Result<(), AppError> {
 
-    let cli_pars: cli_reader::CliPars;
-    cli_pars = cli_reader::fetch_valid_arguments(args)?;
-    let flags = cli_pars.flags;
-
-    let config_file = PathBuf::from("./app_config.toml");
-    let config_string: String = fs::read_to_string(&config_file)
-                                .map_err(|e| AppError::IoReadErrorWithPath(e, config_file))?;
-                              
-    let params = setup::get_params(cli_pars, &config_string)?;
+    let cli = setup::get_command_line_args(args)?;
+    let config = setup::get_config_file_args()?;
+    let params = setup::combine_args(cli, config)?;
+        
     setup::establish_log(&params)?;
-    let pool = setup::get_db_pool().await?;
-         
-    if flags.import_data   // normally should be true
+    let pool = setup::db_pars::get_db_pool().await?;
+
+    let flags = params.flags;
+    
+    if flags.import_ods   
     {
         // recreate the tables
-
-        setup::create_tables(&pool).await?;
+        setup::create_ods_tables(&pool).await?;
 
         // Import the data
-       
         import::import_data(&params.data_folder, &pool).await?;
-       
-     }
+    }
 
-     Ok(())  
+    if flags.process_ods   
+    {
+        // process the imported ods data
+        // TO DO
+    }
+
+    if flags.import_hosps   
+    {
+        // import the hospitals data
+        // TO DO
+    }
+
+    if flags.import_trusts
+    {
+        // import the trusts data
+        // TO DO
+    }
+
+    Ok(())  
 }
