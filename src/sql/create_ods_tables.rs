@@ -118,8 +118,8 @@ pub fn get_ods_sql_1<'a>() -> &'a str {
 
     drop table if exists ods.iom_orgs;
     create table ods.iom_orgs (
-        ods_code varchar not null primary key
-      , ods_name varchar not null
+        ods_code             varchar not null primary key
+      , ods_name             varchar not null
       , city                 varchar null
       , postcode             varchar null
       , postal_add           varchar null
@@ -175,8 +175,8 @@ pub fn get_ods_sql_2<'a>() -> &'a str {
 
     drop table if exists ods.gpmem;
     create table ods.gpmem (
-        ods_code             varchar not null primary key
-      , ods_name             varchar not null
+        ods_code             varchar not null
+      , parent_org           varchar not null
       , parent_org_type      varchar null
       , join_parent_date     date    null
       , left_parent_date     date    null
@@ -197,7 +197,7 @@ pub fn get_ods_sql_2<'a>() -> &'a str {
 
     drop table if exists ods.pcn_partners;
     create table ods.pcn_partners (
-        ods_code             varchar not null primary key
+        ods_code             varchar not null
       , ods_name             varchar not null
       , parent_subicb_loc    varchar null
       , parent_subicb_name   varchar null
@@ -391,6 +391,20 @@ pub fn get_ods_sql_3<'a>() -> &'a str {
       , open_date            date    null
       , close_date           date    null
     );
-    
+
+    drop table if exists ods.path_labs;
+    create table ods.path_labs (
+        ods_code             varchar not null primary key
+      , ods_name             varchar not null
+      , grouping             varchar null
+      , health_geog          varchar null
+      , city                 varchar null
+      , postcode             varchar null
+      , postal_add           varchar null
+      , open_date            date    null
+      , close_date           date    null
+      , parent_org           varchar null
+    );
+
     SET client_min_messages TO NOTICE;"#
 }

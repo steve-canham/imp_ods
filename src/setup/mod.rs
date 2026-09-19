@@ -116,14 +116,14 @@ pub async fn create_ods_tables(pool: &Pool<Postgres>) -> Result<(), AppError> {
 
 fn obtain_config_file_path() -> Result<PathBuf, AppError> {
 
-     if let Some(config) = ProjectDirs::from("eu", "canhamis", "imp_ror") {
+     if let Some(config) = ProjectDirs::from("eu", "canhamis", "imp_ods") {
          let config_folder = config.config_dir().to_path_buf();
          let file_name = "config.toml";
          Ok(config_folder.join(file_name))
  
-         // Linux:   /home/<user name>/.config/imp_ror/config.toml
-         // Windows: C:\Users\<user name>\AppData\Roaming\canhamis\imp_ror\config.toml
-         // macOS:   /Users/<user name>/Library/Application Support/eu.canhamis.imp_ror/config.toml
+         // Linux:   /home/<user name>/.config/imp_ods/config.toml
+         // Windows: C:\Users\<user name>\AppData\Roaming\canhamis\imp_ods\config.toml
+         // macOS:   /Users/<user name>/Library/Application Support/eu.canhamis.imp_ods/config.toml
 
      }   
      else {

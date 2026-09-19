@@ -2,7 +2,6 @@
 pub mod setup;
 pub mod err;
 mod import;
-mod vectors;
 mod sql;
 mod utils;
 
