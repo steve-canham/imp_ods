@@ -423,6 +423,7 @@ fn check_3_letter_word(wcap: &str) -> String {
             "RAY" => "Ray",
             "ROY" => "Roy",
             "ROM" => "Rom",
+            "ROW" => "Row",
             _ => short_word_slice
         };
     }

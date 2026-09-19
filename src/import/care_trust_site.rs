@@ -101,6 +101,21 @@ impl CTSiteVecs{
         self.subtype_codes.push(r.subtype_code.clone());
         self.parent_orgs.push(r.parent_org.clone());
     }
+    
+    pub fn shrink_to_fit(&mut self) 
+    {
+        self.codes.shrink_to_fit();
+        self.names.shrink_to_fit();
+        self.groupings.shrink_to_fit();
+        self.health_geogs.shrink_to_fit();
+        self.cities.shrink_to_fit();
+        self.postcodes.shrink_to_fit();
+        self.postal_adds.shrink_to_fit();
+        self.open_dates.shrink_to_fit();
+        self.close_dates.shrink_to_fit();
+        self.subtype_codes.shrink_to_fit();
+        self.parent_orgs.shrink_to_fit();
+    }
 
     pub async fn store_data(&self, pool : &Pool<Postgres>) -> Result<PgQueryResult, AppError> {
 
@@ -118,6 +133,7 @@ impl CTSiteVecs{
     }
 }
 
+// Just over a thousand records normally provided
 
 pub async fn import_data(data_folder: &PathBuf, source_file_name: &str, pool: &Pool<Postgres>) -> Result<(), AppError> {
 
@@ -131,7 +147,7 @@ pub async fn import_data(data_folder: &PathBuf, source_file_name: &str, pool: &P
         .from_reader(buf_reader);
     
     let mut i = 0;
-    let vector_size = 10000;
+    let vector_size = 2000;
     let mut dv: CTSiteVecs = CTSiteVecs::new(vector_size);
             
     for result in csv_rdr.deserialize() {
@@ -160,9 +176,9 @@ pub async fn import_data(data_folder: &PathBuf, source_file_name: &str, pool: &P
         dv.add_data(&ccg_site_rec);   // transfer data to vectors
         i+=1;    
     }
-            
+
+    dv.shrink_to_fit();
     dv.store_data(&pool).await?;
     info!("{} records processed from {} to ods.ccg_sites", i, source_file_name);
-
     Ok(())
 }
