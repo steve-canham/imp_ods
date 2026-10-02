@@ -122,6 +122,27 @@ impl GPVecs{
         self.prescribing_settings.push(r.prescribing_setting.clone());
     }
 
+    pub fn shrink_to_fit(&mut self) 
+    {
+        self.codes.shrink_to_fit();
+        self.names.shrink_to_fit();
+        self.groupings.shrink_to_fit();
+        self.health_geogs.shrink_to_fit();
+        self.cities.shrink_to_fit();
+        self.postcodes.shrink_to_fit();
+        self.postal_adds.shrink_to_fit();
+        self.open_dates.shrink_to_fit();
+        self.close_dates.shrink_to_fit();
+        self.close_dates.shrink_to_fit();
+        self.statuses.shrink_to_fit();
+        self.subtype_codes.shrink_to_fit();
+        self.commissioners.shrink_to_fit();
+        self.join_parent_dates.shrink_to_fit();
+        self.left_parent_dates.shrink_to_fit();
+        self.provpurchs.shrink_to_fit();
+        self.prescribing_settings.shrink_to_fit();
+    }
+
     pub async fn store_data(&self, pool : &Pool<Postgres>) -> Result<PgQueryResult, AppError> {
 
         let sql = r#"INSERT INTO ods.gps (ods_code, ods_name, grouping, health_geog, 
@@ -144,7 +165,8 @@ impl GPVecs{
     }
 }
 
-
+// approx 16000 records created
+ 
 pub async fn import_data(data_folder: &PathBuf, source_file_name: &str, pool: &Pool<Postgres>) -> Result<(), AppError> {
 
     let source_file_path: PathBuf = [data_folder, &PathBuf::from(source_file_name)].iter().collect();
@@ -157,45 +179,46 @@ pub async fn import_data(data_folder: &PathBuf, source_file_name: &str, pool: &P
         .from_reader(buf_reader);
     
     let mut i = 0;
-    let vector_size = 10000;
+    let mut n = 0;
+    let vector_size = 2000;
     let mut dv: GPVecs = GPVecs::new(vector_size);
             
     for result in csv_rdr.deserialize() {
     
         let source: GPLine = result?;
-        let site_name =  utils::capitalise_site_name(&source.ods_name);
         let (cap_city, postal_address) = utils::get_postal_address(&source.aline1, &source.aline2, 
                                                         &source.aline3, &source.aline4, &source.postcode);        
-        let opened = utils::convert_to_date(&source.open_date);
-        let closed = utils::convert_to_date(&source.close_date);
-        let joined = utils::convert_to_date(&source.join_provpurch_date);
-        let left = utils::convert_to_date(&source.left_provpurch_date);
-        
-        let ccg_site_rec = GPRec {
+        let gp_rec = GPRec {
             ods_code: source.ods_code,
-            ods_name: site_name,
+            ods_name: utils::capitalise_site_name(&source.ods_name),
             grouping: source.grouping,
             health_geog: source.health_geog,
             city: cap_city,
             postcode: source.postcode,
             postal_add: postal_address,
-            open_date: opened,
-            close_date: closed,
+            open_date: NaiveDate::parse_from_str(&source.open_date, "%Y%m%d").ok(),
+            close_date: NaiveDate::parse_from_str(&source.close_date, "%Y%m%d").ok(),
             status: source.status,
             subtype_code: source.subtype_code,
             commissioner: source.commissioner,
-            join_parent_date: joined,
-            left_parent_date: left,
+            join_parent_date: NaiveDate::parse_from_str(&source.join_provpurch_date, "%Y%m%d").ok(),
+            left_parent_date: NaiveDate::parse_from_str(&source.left_provpurch_date, "%Y%m%d").ok(),
             provpurch: source.provpurch,
             prescribing_setting: source.prescribing_setting,
         };
 
-        dv.add_data(&ccg_site_rec);   // transfer data to vectors
-        i+=1;    
+        dv.add_data(&gp_rec);   // transfer data to vectors
+        n+=1;
+        i+=1;   
+        if i == vector_size {
+            dv.store_data(&pool).await?;
+            dv = GPVecs::new(vector_size);
+            i = 0;
+        }
     }
-            
+    
+    dv.shrink_to_fit();         
     dv.store_data(&pool).await?;
-    info!("{} records processed from {} to ods.gps", i, source_file_name);
-
+    info!("{} records processed from {} to ods.gps", n, source_file_name);
     Ok(())
 }

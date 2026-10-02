@@ -1,17 +1,5 @@
 use std::char;
-use chrono::NaiveDate;
 use regex::{Captures, Regex};
-
-
-pub fn convert_to_date(text: &str) -> Option<NaiveDate> {
-
-    match NaiveDate::parse_from_str(text, "%Y%m%d")
-        {
-            Ok(d) => Some(d),
-            Err(_) => None,
-        }
-}
-
 
 pub fn capitalise_field(text: &str) -> String {
     

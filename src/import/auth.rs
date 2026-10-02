@@ -135,7 +135,7 @@ pub async fn import_data(data_folder: &PathBuf, source_file_name: &str, pool: &P
         .delimiter(b',')
         .quote(b'"')
         .from_reader(buf_reader);
-    
+
     let mut i = 0;
     let vector_size = 100;
     let mut dv: AuthVecs = AuthVecs::new(vector_size);
@@ -143,21 +143,17 @@ pub async fn import_data(data_folder: &PathBuf, source_file_name: &str, pool: &P
     for result in csv_rdr.deserialize() {
     
         let source: AuthLine = result?;
-        let site_name =  utils::capitalise_site_name(&source.ods_name);
         let (cap_city, postal_address) = utils::get_postal_address(&source.aline1, &source.aline2, 
                                                         &source.aline3, &source.aline4, &source.postcode);        
-        let opened = utils::convert_to_date(&source.open_date);
-        let closed = utils::convert_to_date(&source.close_date);
-        
         let auth_rec = AuthRec {
             ods_code: source.ods_code,
-            ods_name: site_name,
+            ods_name: utils::capitalise_site_name(&source.ods_name),
             grouping: source.grouping,
             city: cap_city,
             postcode: source.postcode,
             postal_add: postal_address,
-            open_date: opened,
-            close_date: closed,
+            open_date: NaiveDate::parse_from_str(&source.open_date, "%Y%m%d").ok(),
+            close_date: NaiveDate::parse_from_str(&source.close_date, "%Y%m%d").ok(),
             subtype_code: source.subtype_code,
         };
 

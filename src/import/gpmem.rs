@@ -1,5 +1,4 @@
 use crate::AppError;
-use crate::utils;
 
 use sqlx::{postgres::PgQueryResult, Pool, Postgres};
 use chrono::NaiveDate;
@@ -57,6 +56,17 @@ impl LinkedGPVecs{
         self.left_parent_dates.push(r.left_parent_date.clone());
     }
 
+    pub fn shrink_to_fit(&mut self) 
+    {
+        self.codes.shrink_to_fit();
+        self.parent_orgs.shrink_to_fit();
+        self.parent_org_types.shrink_to_fit();
+        self.join_parent_dates.shrink_to_fit();
+        self.left_parent_dates.shrink_to_fit();
+    }
+
+    // approx 47500 records created
+    
     pub async fn store_data(&self, pool : &Pool<Postgres>) -> Result<PgQueryResult, AppError> {
 
         let sql = r#"INSERT INTO ods.gpmem (ods_code, parent_org, parent_org_type, join_parent_date, left_parent_date) 
@@ -83,29 +93,34 @@ pub async fn import_data(data_folder: &PathBuf, source_file_name: &str, pool: &P
         .from_reader(buf_reader);
     
     let mut i = 0;
-    let vector_size = 10000;
+    let mut n = 0;
+    let vector_size = 2000;
     let mut dv: LinkedGPVecs = LinkedGPVecs::new(vector_size);
             
     for result in csv_rdr.deserialize() {
     
         let source: LinkedGPLine = result?;
-        let joined = utils::convert_to_date(&source.join_parent_date);
-        let left = utils::convert_to_date(&source.left_parent_date);
-        
         let gpmem_rec = LinkedGPRec {
             ods_code: source.ods_code,
             parent_org: source.parent_org,
             parent_org_type: source.parent_org_type,
-            join_parent_date: joined,
-            left_parent_date: left,
+            join_parent_date: NaiveDate::parse_from_str(&source.join_parent_date, "%Y%m%d").ok(),
+            left_parent_date: NaiveDate::parse_from_str(&source.left_parent_date, "%Y%m%d").ok(),
         };
 
         dv.add_data(&gpmem_rec);   // transfer data to vectors
-        i+=1;    
+        n+=1;
+        i+=1;   
+        if i == vector_size {
+            dv.store_data(&pool).await?;
+            dv = LinkedGPVecs::new(vector_size);
+            i = 0;
+        } 
+        
     }
-            
+         
+    dv.shrink_to_fit();  
     dv.store_data(&pool).await?;
-    info!("{} records processed from {} to ods.gpmem", i, source_file_name);
-
+    info!("{} records processed from {} to ods.gpmem", n, source_file_name);
     Ok(())
 }

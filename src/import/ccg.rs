@@ -98,6 +98,20 @@ impl CCGVecs{
         self.subtype_codes.push(r.subtype_code.clone());
     }
 
+    pub fn shrink_to_fit(&mut self) 
+    {
+        self.codes.shrink_to_fit();
+        self.names.shrink_to_fit();
+        self.groupings.shrink_to_fit();
+        self.health_geogs.shrink_to_fit();
+        self.cities.shrink_to_fit();
+        self.postcodes.shrink_to_fit();
+        self.postal_adds.shrink_to_fit();
+        self.open_dates.shrink_to_fit();
+        self.close_dates.shrink_to_fit();
+        self.subtype_codes.shrink_to_fit();
+    }
+
     pub async fn store_data(&self, pool : &Pool<Postgres>) -> Result<PgQueryResult, AppError> {
 
         let sql = r#"INSERT INTO ods.ccgs (ods_code, ods_name, grouping, health_geog, 
@@ -114,6 +128,7 @@ impl CCGVecs{
     }
 }
 
+// approx 320 records created
 
 pub async fn import_data(data_folder: &PathBuf, source_file_name: &str, pool: &Pool<Postgres>) -> Result<(), AppError> {
 
@@ -127,37 +142,33 @@ pub async fn import_data(data_folder: &PathBuf, source_file_name: &str, pool: &P
         .from_reader(buf_reader);
     
     let mut i = 0;
-    let vector_size = 10000;
+    let vector_size = 500;
     let mut dv: CCGVecs = CCGVecs::new(vector_size);
             
     for result in csv_rdr.deserialize() {
     
         let source: CCGLine = result?;
-        let site_name =  utils::capitalise_site_name(&source.ods_name);
         let (cap_city, postal_address) = utils::get_postal_address(&source.aline1, &source.aline2, 
                                                         &source.aline3, &source.aline4, &source.postcode);        
-        let opened = utils::convert_to_date(&source.open_date);
-        let closed = utils::convert_to_date(&source.close_date);
-        
         let ccg_rec = CCGRec {
             ods_code: source.ods_code,
-            ods_name: site_name,
+            ods_name: utils::capitalise_site_name(&source.ods_name),
             grouping: source.grouping,
             health_geog: source.health_geog,
             city: cap_city,
             postcode: source.postcode,
             postal_add: postal_address,
-            open_date: opened,
-            close_date: closed,
+            open_date: NaiveDate::parse_from_str(&source.open_date, "%Y%m%d").ok(),
+            close_date: NaiveDate::parse_from_str(&source.close_date, "%Y%m%d").ok(),
             subtype_code: source.subtype_code,
         };
 
         dv.add_data(&ccg_rec);   // transfer data to vectors
         i+=1;    
     }
-            
+
+    dv.shrink_to_fit();   
     dv.store_data(&pool).await?;
     info!("{} records processed from {} to ods.ccgs", i, source_file_name);
-
     Ok(())
 }

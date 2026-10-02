@@ -97,6 +97,20 @@ impl PathVecs{
         self.parent_orgs.push(r.parent_org.clone());
     }
 
+    pub fn shrink_to_fit(&mut self) 
+    {
+        self.codes.shrink_to_fit();
+        self.names.shrink_to_fit();
+        self.groupings.shrink_to_fit();
+        self.health_geogs.shrink_to_fit();
+        self.cities.shrink_to_fit();
+        self.postcodes.shrink_to_fit();
+        self.postal_adds.shrink_to_fit();
+        self.open_dates.shrink_to_fit();
+        self.close_dates.shrink_to_fit();
+        self.parent_orgs.shrink_to_fit();
+    }
+    
     pub async fn store_data(&self, pool : &Pool<Postgres>) -> Result<PgQueryResult, AppError> {
 
         let sql = r#"INSERT INTO ods.path_labs (ods_code, ods_name, grouping, health_geog, 
@@ -113,6 +127,8 @@ impl PathVecs{
     }
 }
 
+// approx 300 records created
+
 pub async fn import_data(data_folder: &PathBuf, source_file_name: &str, pool: &Pool<Postgres>) -> Result<(), AppError> {
 
     let source_file_path: PathBuf = [data_folder, &PathBuf::from(source_file_name)].iter().collect();
@@ -125,35 +141,32 @@ pub async fn import_data(data_folder: &PathBuf, source_file_name: &str, pool: &P
         .from_reader(buf_reader);
     
     let mut i = 0;
-    let vector_size = 10000;
+    let vector_size = 500;
     let mut dv: PathVecs = PathVecs::new(vector_size);
             
     for result in csv_rdr.deserialize() {
     
         let source: PathLine = result?;
-        let site_name =  utils::capitalise_site_name(&source.ods_name);
         let (cap_city, postal_address) = utils::get_postal_address(&source.aline1, &source.aline2, 
                                                         &source.aline3, &source.aline4, &source.postcode);        
-        let opened = utils::convert_to_date(&source.open_date);
-        let closed = utils::convert_to_date(&source.close_date);
-        
         let path_lab_rec = PathRec {
             ods_code: source.ods_code,
-            ods_name: site_name,
+            ods_name: utils::capitalise_site_name(&source.ods_name),
             grouping: source.grouping,
             health_geog: source.health_geog,
             city: cap_city,
             postcode: source.postcode,
             postal_add: postal_address,
-            open_date: opened,
-            close_date: closed,
+            open_date: NaiveDate::parse_from_str(&source.open_date, "%Y%m%d").ok(),
+            close_date: NaiveDate::parse_from_str(&source.close_date, "%Y%m%d").ok(),
             parent_org: source.parent_org,
         };
 
         dv.add_data(&path_lab_rec);   // transfer data to vectors
         i+=1;    
     }
-            
+          
+    dv.shrink_to_fit(); 
     dv.store_data(&pool).await?;
     info!("{} records processed from {} to ods.path_labs", i, source_file_name);
     Ok(())

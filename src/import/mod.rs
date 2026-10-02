@@ -1,5 +1,3 @@
-//pub mod rec_structs;
-
 pub mod auth;
 pub mod ccg;
 pub mod ccg_site;
@@ -30,10 +28,9 @@ pub mod wlhb_site;
 pub mod trust;
 pub mod trust_site;
 
-
+use std::path::PathBuf;
 use sqlx::{Pool, Postgres};
 use crate::AppError;
-use std::path::PathBuf;
 
 pub async fn import_data(data_folder: &PathBuf, pool: &Pool<Postgres>) -> Result<(), AppError> {
 
@@ -71,6 +68,5 @@ pub async fn import_data(data_folder: &PathBuf, pool: &Pool<Postgres>) -> Result
     wlhb::import_data(data_folder, "wlhb.csv", pool).await?;
     wlhb_site::import_data(data_folder, "wlhbsite.csv", pool).await?;
     
-
     Ok(())
 }

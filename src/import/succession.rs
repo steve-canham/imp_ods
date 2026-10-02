@@ -1,6 +1,4 @@
 use crate::AppError;
-use crate::utils;
-
 use sqlx::{postgres::PgQueryResult, Pool, Postgres};
 use chrono::NaiveDate;
 use std::path::PathBuf;
@@ -47,6 +45,15 @@ impl SuccVecs{
         }
     }
 
+    pub fn shrink_to_fit(&mut self) 
+    {
+        self.codes.shrink_to_fit();
+        self.succ_ods_codes.shrink_to_fit();
+        self.succ_reason_codes.shrink_to_fit();
+        self.effective_dates.shrink_to_fit();
+        self.succession_indicators.shrink_to_fit();
+    }
+
     pub fn add_data(&mut self, r: &SuccRec) 
     {
         self.codes.push(r.ods_code.clone());
@@ -70,6 +77,8 @@ impl SuccVecs{
     }
 }
 
+// approx 12000 records created
+
 pub async fn import_data(data_folder: &PathBuf, source_file_name: &str, pool: &Pool<Postgres>) -> Result<(), AppError> {
 
     let source_file_path: PathBuf = [data_folder, &PathBuf::from(source_file_name)].iter().collect();
@@ -82,27 +91,33 @@ pub async fn import_data(data_folder: &PathBuf, source_file_name: &str, pool: &P
         .from_reader(buf_reader);
     
     let mut i = 0;
-    let vector_size = 10000;
+    let mut n = 0;
+    let vector_size = 2000;
     let mut dv: SuccVecs = SuccVecs::new(vector_size);
             
     for result in csv_rdr.deserialize() {
     
         let source: SuccLine = result?;
-        let eff_date = utils::convert_to_date(&source.effective_date);
-         
         let succ_rec = SuccRec {
             ods_code: source.ods_code,
             succ_ods_code: source.succ_ods_code,
             succ_reason_code: source.succ_reason_code,
-            effective_date: eff_date,
+            effective_date: NaiveDate::parse_from_str(&source.effective_date, "%Y%m%d").ok(),
             succession_indicator: source.succession_indicator,
          };
 
         dv.add_data(&succ_rec);   // transfer data to vectors
-        i+=1;    
+        n+=1;
+        i+=1;   
+        if i == vector_size {
+            dv.store_data(&pool).await?;
+            dv = SuccVecs::new(vector_size);
+            i = 0;
+        } 
     }
-            
+
+    dv.shrink_to_fit();
     dv.store_data(&pool).await?;
-    info!("{} records processed from {} to ods.succ_rec", i, source_file_name);
+    info!("{} records processed from {} to ods.succ_rec", n, source_file_name);
     Ok(())
 }

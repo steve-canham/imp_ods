@@ -1,5 +1,4 @@
 use crate::AppError;
-use crate::utils;
 
 use sqlx::{postgres::PgQueryResult, Pool, Postgres};
 use chrono::NaiveDate;
@@ -57,6 +56,15 @@ impl LinkedNIGPVecs{
         self.left_parent_dates.push(r.left_parent_date.clone());
     }
 
+    pub fn shrink_to_fit(&mut self) 
+    {
+        self.codes.shrink_to_fit();
+        self.parent_orgs.shrink_to_fit();
+        self.parent_org_types.shrink_to_fit();
+        self.join_parent_dates.shrink_to_fit();
+        self.left_parent_dates.shrink_to_fit();
+    }
+
     pub async fn store_data(&self, pool : &Pool<Postgres>) -> Result<PgQueryResult, AppError> {
 
         let sql = r#"INSERT INTO ods.ni_gps_in_lhscg (ods_code, parent_org, parent_org_type, 
@@ -71,6 +79,7 @@ impl LinkedNIGPVecs{
     }
 }
 
+// approx 320 records created
 
 pub async fn import_data(data_folder: &PathBuf, source_file_name: &str, pool: &Pool<Postgres>) -> Result<(), AppError> {
 
@@ -84,27 +93,25 @@ pub async fn import_data(data_folder: &PathBuf, source_file_name: &str, pool: &P
         .from_reader(buf_reader);
     
     let mut i = 0;
-    let vector_size = 10000;
+    let vector_size = 400;
     let mut dv: LinkedNIGPVecs = LinkedNIGPVecs::new(vector_size);
             
     for result in csv_rdr.deserialize() {
     
         let source: LinkedNIGPLine = result?;
-        let joined = utils::convert_to_date(&source.join_parent_date);
-        let left = utils::convert_to_date(&source.left_parent_date);
-        
         let ccg_site_rec = LinkedNIGPRec {
             ods_code: source.ods_code,
             parent_org: source.parent_org,
             parent_org_type: source.parent_org_type,
-            join_parent_date: joined,
-            left_parent_date: left,
+            join_parent_date: NaiveDate::parse_from_str(&source.join_parent_date, "%Y%m%d").ok(),
+            left_parent_date: NaiveDate::parse_from_str(&source.left_parent_date, "%Y%m%d").ok(),
         };
 
         dv.add_data(&ccg_site_rec);   // transfer data to vectors
         i+=1;    
     }
-            
+
+    dv.shrink_to_fit();
     dv.store_data(&pool).await?;
     info!("{} records processed from {} to ods.ni_gps_in_lhscg", i, source_file_name);
 
