@@ -1,3 +1,4 @@
+
 pub mod auth;
 pub mod ccg;
 pub mod ccg_site;
@@ -33,7 +34,7 @@ use sqlx::{Pool, Postgres};
 use crate::AppError;
 
 pub async fn import_data(data_folder: &PathBuf, pool: &Pool<Postgres>) -> Result<(), AppError> {
-
+   
     auth::import_data(data_folder, "eauth.csv", pool).await?;
     ccg::import_data(data_folder, "eccg.csv", pool).await?;
     ccg_site::import_data(data_folder, "eccgsite.csv", pool).await?;
