@@ -13,16 +13,20 @@ pub fn capitalise_field(text: &str) -> String {
    let mut arg_text = text.replace("'","’");
    arg_text = arg_text.replace(".","");
 
-   // Ensure &s and brackets are properly spaced.
+   // Ensure &s, any commas and brackets are properly spaced.
    
    if arg_text.contains('&') {
        arg_text = repair_ampersands(&arg_text);
    }
 
+   if arg_text.contains(',') {
+       arg_text = repair_commas(&arg_text);
+   }
+
    if arg_text.contains('(') {
        arg_text = repair_brackets(&arg_text);
    }
-   
+  
    // Put field in lower case and remove hyphens from some names.
 
    let mut lower = arg_text.to_lowercase();
@@ -30,14 +34,16 @@ pub fn capitalise_field(text: &str) -> String {
    if lower.contains('-') {
        lower = lower.replace("-by-the-", " by the ");
        lower = lower.replace("-on-the-", " on the ");
+       lower = lower.replace("-en-le-", " en le ");
+       lower = lower.replace("-by-", " by ");
+       lower = lower.replace("-in-", " in ");      
        lower = lower.replace("-on-", " on ");
-       lower = lower.replace("-under-", " under ");
-       lower = lower.replace("-in-", " in ");
+       lower = lower.replace("-le-", " le ");  
+       lower = lower.replace("-de-", " de ");         
        lower = lower.replace("-super-", " super ");
-       lower = lower.replace("-upon-", " upon");
-       lower = lower.replace("-by-the-", " by the ");
-       lower = lower.replace("-on-the-", " on the ");
-       lower = lower.replace("-le-", " le ");
+       lower = lower.replace("-upon-", " upon ");
+       lower = lower.replace("-under-", " under ");
+       lower = lower.replace("-over-", " over ");
    }
 
    // Try and ensure remaining hyphens are also regularly spaced
@@ -45,7 +51,20 @@ pub fn capitalise_field(text: &str) -> String {
    if lower.contains('-') {
        lower = repair_hyphens(&lower);
    }
-   
+
+   // Try and ensure remaining slashes are also regularly spaced
+
+   if lower.contains('/') {
+       lower = lower.replace("n/cle", "newcastle");
+       lower = lower.replace("h/pool", "hartlepool");
+       lower = lower.replace("m/brough", "middlesbrough");
+       lower = lower.replace("h/pk", "health park");
+   }
+
+   if lower.contains('/') {
+       lower = repair_slashes(&lower);
+   }
+      
    // Split lower case string into separate words 
 
    let parts: Vec<_> = lower
@@ -86,9 +105,16 @@ pub fn capitalise_field(text: &str) -> String {
     // Some odd corrections still required
 
     new_text = new_text.replace(" The ", " the ");
+    new_text = new_text.replace(" ST,", " Street,");
     new_text = new_text.replace(" - Y - ", "-y-");
+    new_text = new_text.replace(" - Yr- ", "-yr-");
     new_text = new_text.replace(" Y ", " y ");
     new_text = new_text.replace("A & E ", "A&E ");
+    new_text = new_text.replace("O / P", "O/P");
+    new_text = new_text.replace("P / C", "P/C");
+    new_text = new_text.replace("C / O", "c/o");
+    new_text = new_text.replace("Tri - Serv", "TriServ");
+    new_text = new_text.replace("Tri Serv", "TriServ");
     new_text = new_text.replace("O Cliff", "O’Cliff");
 
     new_text
@@ -109,6 +135,8 @@ pub fn capitalise_site_name(text: &str) -> String {
     new_name = new_name.replace(" C S U", " CSU");
     new_name = new_name.replace("in - Reach", "Inreach");
     new_name = new_name.replace("D - MHSOP", "DMHSOP");
+    new_name = new_name.replace("CAS - CP", "CAS-CP");
+    new_name = new_name.replace("CAS - RP", "CAS-RP");
 
     new_name
 }
@@ -137,18 +165,25 @@ fn repair_ampersands(text: &str) -> String {
     static RE_A1: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\S&").unwrap());
     static RE_A2: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"&\S").unwrap());
     let mut new_text = text.to_string(); 
-    
-    // If no space before or after ampersand add one
-
-    if RE_A1.is_match(text)
+    if RE_A1.is_match(text)    // If no space before add one
     {
         new_text = new_text.replace("&", " &");
     }
-    if RE_A2.is_match(text)
+    if RE_A2.is_match(text)    // If no space after add one
     {
         new_text = new_text.replace("&", "& ");
     }
+    new_text
+}
 
+fn repair_commas(text: &str) -> String {
+
+    static RE_C1: LazyLock<Regex> = LazyLock::new(|| Regex::new(r",\S").unwrap());
+    let mut new_text = text.to_string(); 
+    if RE_C1.is_match(text)    // If no space after add one
+    {
+        new_text = new_text.replace(",", ", ");
+    }
     new_text
 }
 
@@ -157,23 +192,15 @@ fn repair_brackets(text: &str) -> String {
 
     static RE_B1: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\S\(").unwrap());
     static RE_B2: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\)\S").unwrap());
-    
     let mut new_text = text.to_string(); 
-    
-    // Left bracket - if no space before add one
-
-    if RE_B1.is_match(text)
+    if RE_B1.is_match(text)     // If no space before left bracket add one
     {
         new_text = new_text.replace("(", " (");
     }
-
-    // Right bracket - if no space after add one
-
-    if RE_B2.is_match(text)
+    if RE_B2.is_match(text)     // If no space after right bracket add one
     {
         new_text = new_text.replace(")", ") ");
     }
-        
     new_text
 }
 
@@ -204,12 +231,13 @@ fn repair_hyphens(text: &str) -> String {
     if new_text.ends_with(" - a") {new_text = new_text.replace(" - a", "-A");}
     if new_text.ends_with(" - b") {new_text = new_text.replace(" - b", "-B");}
 
-    new_text = new_text.replace(" - amh", "amh");
-    new_text = new_text.replace(" - camhs", "camhs");
-    new_text = new_text.replace(" - ca", "ca");
+    new_text = new_text.replace(" - amh", "AMH");
+    new_text = new_text.replace(" - camhs", "CAMHS");
+    new_text = new_text.replace(" - ca", " CA");
 
     new_text = new_text.replace("Walk - in", "Walk-in");
     new_text = new_text.replace("CO - OP", "Co-op");
+    new_text = new_text.replace("Mon - Ami", "Mon Ami");
     new_text = new_text.replace("non - ", "non-");
     new_text = new_text.replace("pre - ", "pre-");
 
@@ -222,9 +250,43 @@ fn repair_hyphens(text: &str) -> String {
 }
 
 
+fn repair_slashes(text: &str) -> String {
+
+    static RE_S1: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\S/").unwrap());
+    static RE_S2: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"/\S").unwrap());
+    static RE_SN: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?<numhyph>[0-9] / [0-9])").unwrap());
+    
+    let mut new_text = text.to_string(); 
+       
+    // If no space before or after add one
+    
+    if RE_S1.is_match(text)
+    {
+        new_text = new_text.replace("/", " /");
+    }
+    if RE_S2.is_match(text)
+    {
+        new_text = new_text.replace("/", "/ ");
+    }
+       
+    // slashes between numbers should be closed up again and changed to hyphens...
+
+    new_text = RE_SN.replace_all(&new_text, 
+        |caps: &Captures| {caps["numhyph"].replace(" / ", "/")}).to_string();
+
+    new_text
+}
+
+
 fn capitalise_word(w: &str) -> String {
 
     let char_length = w.chars().count();
+
+    // The expectation is that - by default - small words, less than 
+    // 4 characters, are in uppper case, while any 4 characters or 
+    // longer have only the first letter capitalised. There are, however, many
+    // exceptions to both rules, hence the use of mappings for each size word
+    // to replace erroneous capitalisations with the correct one.
     
     let mut wcapped = if char_length < 4 {
         w.to_uppercase()  // Capitalise all characters

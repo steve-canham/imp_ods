@@ -3,7 +3,7 @@ A utility intended for periodic imports of NHS Organisational data, as made avai
 Data can be downloaded by using the ODS's 'export packs' facilty, available at https://www.odsdatasearchandexport.nhs.uk/. The required files can be selected - usually as two or three distinct packs - and the download format (csv without headers) chosen. The csv files can then be extracted from the resultant downloaded zip file.<br/>
 <br/>
 Data is stored in a Postgres database called 'nhs', within a schema called ods. Data from 28 csv files are imported, listed below. 
-In each case the name fields are put into Capitalised form - in the original ODS data they are all in upper case. This means that most words are in lower case with an initial capital letter, though abbreviations and acronyms that would normally all be in upper case are recognised and retained as upper case. This makes the data much easier to read and work with.<br/>
+In each case the name fields are put into Capitalised form - in the original ODS data they are all in upper case. This means that most words are in lower case with an initial capital letter, though abbreviations and acronyms that would normally all be in upper case are recognised and retained as upper case, while small words (like 'and', 'to', 'of' etc.) are all in lower case. This makes the data much easier to read and work with.<br/>
 <br/>
 Further processing of the data, together with integration with both Scottish data, and other sources of NHS related data, is planned for the future.<br/>
 <br/>
